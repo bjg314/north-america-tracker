@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>North America Parks & Teams Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
+  <!-- MarkerCluster CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+  />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+    .controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: rgba(255,255,255,0.95);
+      padding: 8px 10px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      font-size: 12px;
+      max-width: 260px;
+    }
+    .controls strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+    .controls h4 {
+      margin: 6px 0 4px;
+      font-size: 12px;
+    }
+    .controls label {
+      display: block;
+      cursor: pointer;
+      margin-bottom: 2px;
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      margin-bottom: 2px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid #fff;
+    }
+
+    .sidebar {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: rgba(255,255,255,0.97);
+      padding: 8px 10px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      font-size: 12px;
+      width: 280px;
+      max-height: 80%;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 4px;
+      gap: 8px;
+    }
+    .sidebar-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+    .sidebar-tabs button {
+      flex: 1;
+      font-size: 12px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background: #f5f5f5;
+      cursor: pointer;
+    }
+    .sidebar-tabs button.active {
+      background: #0077ff;
+      color: #fff;
+      border-color: #0077ff;
+    }
+    .sidebar-list {
+      list-style: none;
+      padding: 0;
+      margin: 4px 0 0;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .sidebar-list li {
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sidebar-list label {
+      cursor: pointer;
+    }
+    .sidebar small {
+      font-size: 11px;
+      color: #555;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="controls">
+  <strong>Show / Hide</strong>
+  <label><input type="checkbox" id="usToggle" checked> US Parks</label>
+  <label><input type="checkbox" id="caToggle" checked> Canadian Parks</label>
+  <label><input type="checkbox" id="mlbToggle" checked> MLB</label>
+  <label><input type="checkbox" id="nflToggle" checked> NFL</label>
+  <label><input type="checkbox" id="nbaToggle" checked> NBA</label>
+  <label><input type="checkbox" id="nhlToggle" checked> NHL</label>
+
+  <h4>Legend</h4>
+  <div class="legend-row">
+    <span class="dot" style="background:#0077ff;"></span> Park (not visited)
+  </div>
+  <div class="legend-row">
+    <span class="dot" style="background:#00aa55;"></span> Any visited
+  </div>
+  <div class="legend-row">
+    <span class="dot" style="background:#f44336;"></span> MLB (unvisited)
+  </div>
+  <div class="legend-row">
+    <span class="dot" style="background:#795548;"></span> NFL (unvisited)
+  </div>
+  <div class="legend-row">
+    <span class="dot" style="background:#ff9800;"></span> NBA (unvisited)
+  </div>
+  <div class="legend-row">
+    <span class="dot" style="background:#000000;"></span> NHL (unvisited)
+  </div>
+</div>
+
+<div class="sidebar">
+  <div class="sidebar-header">
+    <strong>Your checklist</strong>
+    <span id="visitSummary">0 parks / 0 teams</span>
+  </div>
+
+  <div class="sidebar-tabs">
+    <button id="tabParks" class="active">Parks</button>
+    <button id="tabTeams">Teams</button>
+  </div>
+
+  <small id="hintParks">Mark parks visited. Click a row to zoom.</small>
+  <small id="hintTeams" class="hidden">Mark stadiums/arenas visited. Click a row to zoom.</small>
+
+  <ul id="parkList" class="sidebar-list"></ul>
+  <ul id="teamList" class="sidebar-list hidden"></ul>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- MarkerCluster JS -->
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<script>
+/* =============================
+   1. MAP SETUP
+============================= */
+const map = L.map("map").setView([45, -100], 4);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 15,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+
+/* =============================
+   2. PARKS DATA
+   US 63 NPs + Canadian NPs + reserves + Rouge NUP
+============================= */
+const parks = [
+  // US national parks
+  { name: "Acadia National Park", country: "US", region: "Maine", lat: 44.3386, lng: -68.2733 },
+  { name: "American Samoa National Park", country: "US", region: "American Samoa", lat: -14.2289, lng: -169.8610 },
+  { name: "Arches National Park", country: "US", region: "Utah", lat: 38.7331, lng: -109.5925 },
+  { name: "Badlands National Park", country: "US", region: "South Dakota", lat: 43.8554, lng: -102.3397 },
+  { name: "Big Bend National Park", country: "US", region: "Texas", lat: 29.1275, lng: -103.2425 },
+  { name: "Biscayne National Park", country: "US", region: "Florida", lat: 25.4824, lng: -80.2083 },
+  { name: "Black Canyon of the Gunnison National Park", country: "US", region: "Colorado", lat: 38.5754, lng: -107.7416 },
+  { name: "Bryce Canyon National Park", country: "US", region: "Utah", lat: 37.5930, lng: -112.1871 },
+  { name: "Canyonlands National Park", country: "US", region: "Utah", lat: 38.3269, lng: -109.8783 },
+  { name: "Capitol Reef National Park", country: "US", region: "Utah", lat: 38.3670, lng: -111.2615 },
+  { name: "Carlsbad Caverns National Park", country: "US", region: "New Mexico", lat: 32.1479, lng: -104.5567 },
+  { name: "Channel Islands National Park", country: "US", region: "California", lat: 34.0069, lng: -119.7785 },
+  { name: "Congaree National Park", country: "US", region: "South Carolina", lat: 33.7913, lng: -80.7485 },
+  { name: "Crater Lake National Park", country: "US", region: "Oregon", lat: 42.9446, lng: -122.1090 },
+  { name: "Cuyahoga Valley National Park", country: "US", region: "Ohio", lat: 41.2808, lng: -81.5715 },
+  { name: "Death Valley National Park", country: "US", region: "California/Nevada", lat: 36.5054, lng: -117.0794 },
+  { name: "Denali National Park and Preserve", country: "US", region: "Alaska", lat: 63.1148, lng: -151.1926 },
+  { name: "Dry Tortugas National Park", country: "US", region: "Florida", lat: 24.6387, lng: -82.8732 },
+  { name: "Everglades National Park", country: "US", region: "Florida", lat: 25.2866, lng: -80.8987 },
+  { name: "Gates of the Arctic National Park and Preserve", country: "US", region: "Alaska", lat: 67.8818, lng: -153.1861 },
+  { name: "Gateway Arch National Park", country: "US", region: "Missouri", lat: 38.6247, lng: -90.1848 },
+  { name: "Glacier National Park", country: "US", region: "Montana", lat: 48.7596, lng: -113.7870 },
+  { name: "Glacier Bay National Park and Preserve", country: "US", region: "Alaska", lat: 58.6658, lng: -136.9002 },
+  { name: "Grand Canyon National Park", country: "US", region: "Arizona", lat: 36.1069, lng: -112.1129 },
+  { name: "Grand Teton National Park", country: "US", region: "Wyoming", lat: 43.7904, lng: -110.6818 },
+  { name: "Great Basin National Park", country: "US", region: "Nevada", lat: 38.9833, lng: -114.3000 },
+  { name: "Great Sand Dunes National Park and Preserve", country: "US", region: "Colorado", lat: 37.7926, lng: -105.5911 },
+  { name: "Great Smoky Mountains National Park", country: "US", region: "Tennessee/North Carolina", lat: 35.6118, lng: -83.4895 },
+  { name: "Guadalupe Mountains National Park", country: "US", region: "Texas", lat: 31.9230, lng: -104.8670 },
+  { name: "Haleakalā National Park", country: "US", region: "Hawaii", lat: 20.7204, lng: -156.1552 },
+  { name: "Hawaiʻi Volcanoes National Park", country: "US", region: "Hawaii", lat: 19.4194, lng: -155.2885 },
+  { name: "Hot Springs National Park", country: "US", region: "Arkansas", lat: 34.5215, lng: -93.0424 },
+  { name: "Indiana Dunes National Park", country: "US", region: "Indiana", lat: 41.6533, lng: -87.0524 },
+  { name: "Isle Royale National Park", country: "US", region: "Michigan", lat: 48.0100, lng: -88.9400 },
+  { name: "Joshua Tree National Park", country: "US", region: "California", lat: 33.8734, lng: -115.9010 },
+  { name: "Katmai National Park and Preserve", country: "US", region: "Alaska", lat: 58.6139, lng: -155.0010 },
+  { name: "Kenai Fjords National Park", country: "US", region: "Alaska", lat: 59.9200, lng: -149.6500 },
+  { name: "Kings Canyon National Park", country: "US", region: "California", lat: 36.8879, lng: -118.5551 },
+  { name: "Kobuk Valley National Park", country: "US", region: "Alaska", lat: 67.3554, lng: -159.1231 },
+  { name: "Lake Clark National Park and Preserve", country: "US", region: "Alaska", lat: 60.4136, lng: -154.3232 },
+  { name: "Lassen Volcanic National Park", country: "US", region: "California", lat: 40.4977, lng: -121.4207 },
+  { name: "Mammoth Cave National Park", country: "US", region: "Kentucky", lat: 37.1860, lng: -86.1005 },
+  { name: "Mesa Verde National Park", country: "US", region: "Colorado", lat: 37.2309, lng: -108.4618 },
+  { name: "Mount Rainier National Park", country: "US", region: "Washington", lat: 46.8523, lng: -121.7603 },
+  { name: "New River Gorge National Park and Preserve", country: "US", region: "West Virginia", lat: 38.0730, lng: -81.0750 },
+  { name: "North Cascades National Park", country: "US", region: "Washington", lat: 48.7718, lng: -121.2985 },
+  { name: "Olympic National Park", country: "US", region: "Washington", lat: 47.8021, lng: -123.6044 },
+  { name: "Petrified Forest National Park", country: "US", region: "Arizona", lat: 35.0666, lng: -109.7770 },
+  { name: "Pinnacles National Park", country: "US", region: "California", lat: 36.4906, lng: -121.1825 },
+  { name: "Redwood National and State Parks", country: "US", region: "California", lat: 41.3720, lng: -124.0310 },
+  { name: "Rocky Mountain National Park", country: "US", region: "Colorado", lat: 40.3428, lng: -105.6836 },
+  { name: "Saguaro National Park", country: "US", region: "Arizona", lat: 32.2967, lng: -111.1666 },
+  { name: "Sequoia National Park", country: "US", region: "California", lat: 36.4864, lng: -118.5658 },
+  { name: "Shenandoah National Park", country: "US", region: "Virginia", lat: 38.2928, lng: -78.6796 },
+  { name: "Theodore Roosevelt National Park", country: "US", region: "North Dakota", lat: 46.9790, lng: -103.5387 },
+  { name: "Virgin Islands National Park", country: "US", region: "US Virgin Islands", lat: 18.3420, lng: -64.7410 },
+  { name: "Voyageurs National Park", country: "US", region: "Minnesota", lat: 48.4837, lng: -92.8380 },
+  { name: "White Sands National Park", country: "US", region: "New Mexico", lat: 32.7791, lng: -106.1719 },
+  { name: "Wind Cave National Park", country: "US", region: "South Dakota", lat: 43.5722, lng: -103.4820 },
+  { name: "Wrangell–St. Elias National Park and Preserve", country: "US", region: "Alaska", lat: 61.7100, lng: -142.9850 },
+  { name: "Yellowstone National Park", country: "US", region: "Wyoming/Montana/Idaho", lat: 44.4280, lng: -110.5885 },
+  { name: "Yosemite National Park", country: "US", region: "California", lat: 37.8651, lng: -119.5383 },
+  { name: "Zion National Park", country: "US", region: "Utah", lat: 37.2982, lng: -113.0263 },
+
+  // Canada national parks & reserves + Rouge NUP
+  { name: "Akami-Uapishkᵁ-KakKasuak-Mealy Mountains National Park Reserve", country: "Canada", region: "Newfoundland and Labrador", lat: 53.6667, lng: -59.0000 },
+  { name: "Aulavik National Park", country: "Canada", region: "Northwest Territories", lat: 75.0000, lng: -118.0000 },
+  { name: "Auyuittuq National Park", country: "Canada", region: "Nunavut", lat: 66.0000, lng: -65.0000 },
+  { name: "Banff National Park", country: "Canada", region: "Alberta", lat: 51.4968, lng: -115.9281 },
+  { name: "Bruce Peninsula National Park", country: "Canada", region: "Ontario", lat: 45.2250, lng: -81.5250 },
+  { name: "Cape Breton Highlands National Park", country: "Canada", region: "Nova Scotia", lat: 46.7500, lng: -60.8000 },
+  { name: "Elk Island National Park", country: "Canada", region: "Alberta", lat: 53.5970, lng: -112.8550 },
+  { name: "Forillon National Park", country: "Canada", region: "Quebec", lat: 48.8440, lng: -64.2100 },
+  { name: "Fundy National Park", country: "Canada", region: "New Brunswick", lat: 45.5950, lng: -65.0100 },
+  { name: "Georgian Bay Islands National Park", country: "Canada", region: "Ontario", lat: 44.8500, lng: -79.9000 },
+  { name: "Glacier National Park", country: "Canada", region: "British Columbia", lat: 51.3000, lng: -117.5330 },
+  { name: "Grasslands National Park", country: "Canada", region: "Saskatchewan", lat: 49.2000, lng: -107.0000 },
+  { name: "Gros Morne National Park", country: "Canada", region: "Newfoundland and Labrador", lat: 49.6490, lng: -57.7550 },
+  { name: "Gulf Islands National Park Reserve", country: "Canada", region: "British Columbia", lat: 48.8500, lng: -123.3330 },
+  { name: "Gwaii Haanas National Park Reserve", country: "Canada", region: "British Columbia", lat: 52.6500, lng: -131.2500 },
+  { name: "Ivvavik National Park", country: "Canada", region: "Yukon", lat: 69.5000, lng: -140.0000 },
+  { name: "Jasper National Park", country: "Canada", region: "Alberta", lat: 52.8734, lng: -118.0814 },
+  { name: "Kejimkujik National Park and National Historic Site", country: "Canada", region: "Nova Scotia", lat: 44.4330, lng: -65.2000 },
+  { name: "Kluane National Park and Reserve", country: "Canada", region: "Yukon", lat: 60.7500, lng: -138.5000 },
+  { name: "Kootenay National Park", country: "Canada", region: "British Columbia", lat: 50.8833, lng: -116.0333 },
+  { name: "Kouchibouguac National Park", country: "Canada", region: "New Brunswick", lat: 46.7667, lng: -64.9500 },
+  { name: "La Mauricie National Park", country: "Canada", region: "Quebec", lat: 46.7000, lng: -72.8000 },
+  { name: "Mingan Archipelago National Park Reserve", country: "Canada", region: "Quebec", lat: 50.2000, lng: -63.6000 },
+  { name: "Mount Revelstoke National Park", country: "Canada", region: "British Columbia", lat: 51.0167, lng: -118.1667 },
+  { name: "Nahanni National Park Reserve", country: "Canada", region: "Northwest Territories", lat: 61.6000, lng: -125.5000 },
+  { name: "Nááts'įhch'oh National Park Reserve", country: "Canada", region: "Northwest Territories", lat: 62.0000, lng: -127.5000 },
+  { name: "Pacific Rim National Park Reserve", country: "Canada", region: "British Columbia", lat: 48.6333, lng: -125.1500 },
+  { name: "Point Pelee National Park", country: "Canada", region: "Ontario", lat: 41.9630, lng: -82.5186 },
+  { name: "Prince Albert National Park", country: "Canada", region: "Saskatchewan", lat: 53.9167, lng: -106.0830 },
+  { name: "Prince Edward Island National Park", country: "Canada", region: "Prince Edward Island", lat: 46.5000, lng: -63.3500 },
+  { name: "Pukaskwa National Park", country: "Canada", region: "Ontario", lat: 48.6000, lng: -86.3000 },
+  { name: "Qausuittuq National Park", country: "Canada", region: "Nunavut", lat: 76.5333, lng: -97.4333 },
+  { name: "Quttinirpaaq National Park", country: "Canada", region: "Nunavut", lat: 81.0000, lng: -76.0000 },
+  { name: "Riding Mountain National Park", country: "Canada", region: "Manitoba", lat: 50.8667, lng: -100.0000 },
+  { name: "Rouge National Urban Park", country: "Canada", region: "Ontario", lat: 43.8050, lng: -79.1700 },
+  { name: "Sable Island National Park Reserve", country: "Canada", region: "Nova Scotia", lat: 43.9333, lng: -60.0000 },
+  { name: "Sirmilik National Park", country: "Canada", region: "Nunavut", lat: 73.0000, lng: -79.0000 },
+  { name: "Terra Nova National Park", country: "Canada", region: "Newfoundland and Labrador", lat: 48.5833, lng: -53.9500 },
+  { name: "Thaidene Nëné National Park Reserve", country: "Canada", region: "Northwest Territories", lat: 62.5000, lng: -108.0000 },
+  { name: "Thousand Islands National Park", country: "Canada", region: "Ontario", lat: 44.3833, lng: -75.9833 },
+  { name: "Torngat Mountains National Park", country: "Canada", region: "Newfoundland and Labrador", lat: 58.5000, lng: -63.5000 },
+  { name: "Tuktut Nogait National Park", country: "Canada", region: "Northwest Territories", lat: 69.3333, lng: -122.0000 },
+  { name: "Ukkusiksalik National Park", country: "Canada", region: "Nunavut", lat: 66.0000, lng: -90.0000 },
+  { name: "Vuntut National Park", country: "Canada", region: "Yukon", lat: 68.5000, lng: -140.5000 },
+  { name: "Wapusk National Park", country: "Canada", region: "Manitoba", lat: 57.7500, lng: -93.5000 },
+  { name: "Waterton Lakes National Park", country: "Canada", region: "Alberta", lat: 49.0820, lng: -113.9120 },
+  { name: "Wood Buffalo National Park", country: "Canada", region: "Alberta/Northwest Territories", lat: 59.0000, lng: -112.0000 },
+  { name: "Yoho National Park", country: "Canada", region: "British Columbia", lat: 51.3762, lng: -116.5402 }
+];
+
+
+/* =============================
+   3. SPORTS TEAMS DATA
+   MLB(30) + NFL(32) + NBA(30) + NHL(32)
+============================= */
+const sportsTeams = [
+  // MLB
+  { id:"mlb-ari", name:"Arizona Diamondbacks", league:"MLB", city:"Phoenix", state:"AZ", venue:"Chase Field", lat:33.4455, lng:-112.0667 },
+  { id:"mlb-atl", name:"Atlanta Braves", league:"MLB", city:"Atlanta", state:"GA", venue:"Truist Park", lat:33.8907, lng:-84.4677 },
+  { id:"mlb-bal", name:"Baltimore Orioles", league:"MLB", city:"Baltimore", state:"MD", venue:"Oriole Park at Camden Yards", lat:39.2839, lng:-76.6219 },
+  { id:"mlb-bos", name:"Boston Red Sox", league:"MLB", city:"Boston", state:"MA", venue:"Fenway Park", lat:42.3467, lng:-71.0972 },
+  { id:"mlb-chc", name:"Chicago Cubs", league:"MLB", city:"Chicago", state:"IL", venue:"Wrigley Field", lat:41.9484, lng:-87.6553 },
+  { id:"mlb-chw", name:"Chicago White Sox", league:"MLB", city:"Chicago", state:"IL", venue:"Guaranteed Rate Field", lat:41.8300, lng:-87.6339 },
+  { id:"mlb-cin", name:"Cincinnati Reds", league:"MLB", city:"Cincinnati", state:"OH", venue:"Great American Ball Park", lat:39.0976, lng:-84.5071 },
+  { id:"mlb-cle", name:"Cleveland Guardians", league:"MLB", city:"Cleveland", state:"OH", venue:"Progressive Field", lat:41.4962, lng:-81.6852 },
+  { id:"mlb-col", name:"Colorado Rockies", league:"MLB", city:"Denver", state:"CO", venue:"Coors Field", lat:39.7559, lng:-104.9942 },
+  { id:"mlb-det", name:"Detroit Tigers", league:"MLB", city:"Detroit", state:"MI", venue:"Comerica Park", lat:42.3390, lng:-83.0485 },
+  { id:"mlb-hou", name:"Houston Astros", league:"MLB", city:"Houston", state:"TX", venue:"Minute Maid Park", lat:29.7572, lng:-95.3554 },
+  { id:"mlb-kc", name:"Kansas City Royals", league:"MLB", city:"Kansas City", state:"MO", venue:"Kauffman Stadium", lat:39.0517, lng:-94.4803 },
+  { id:"mlb-laa", name:"Los Angeles Angels", league:"MLB", city:"Anaheim", state:"CA", venue:"Angel Stadium", lat:33.7995, lng:-117.8826 },
+  { id:"mlb-lad", name:"Los Angeles Dodgers", league:"MLB", city:"Los Angeles", state:"CA", venue:"Dodger Stadium", lat:34.0739, lng:-118.2400 },
+  { id:"mlb-mia", name:"Miami Marlins", league:"MLB", city:"Miami", state:"FL", venue:"loanDepot Park", lat:25.7781, lng:-80.2197 },
+  { id:"mlb-mil", name:"Milwaukee Brewers", league:"MLB", city:"Milwaukee", state:"WI", venue:"American Family Field", lat:43.0280, lng:-87.9713 },
+  { id:"mlb-min", name:"Minnesota Twins", league:"MLB", city:"Minneapolis", state:"MN", venue:"Target Field", lat:44.9817, lng:-93.2776 },
+  { id:"mlb-nym", name:"New York Mets", league:"MLB", city:"New York", state:"NY", venue:"Citi Field", lat:40.7571, lng:-73.8458 },
+  { id:"mlb-nyy", name:"New York Yankees", league:"MLB", city:"New York", state:"NY", venue:"Yankee Stadium", lat:40.8296, lng:-73.9262 },
+  { id:"mlb-oak", name:"Oakland Athletics", league:"MLB", city:"Oakland", state:"CA", venue:"Oakland Coliseum", lat:37.7516, lng:-122.2005 },
+  { id:"mlb-phi", name:"Philadelphia Phillies", league:"MLB", city:"Philadelphia", state:"PA", venue:"Citizens Bank Park", lat:39.9058, lng:-75.1665 },
+  { id:"mlb-pit", name:"Pittsburgh Pirates", league:"MLB", city:"Pittsburgh", state:"PA", venue:"PNC Park", lat:40.4469, lng:-80.0057 },
+  { id:"mlb-sd", name:"San Diego Padres", league:"MLB", city:"San Diego", state:"CA", venue:"Petco Park", lat:32.7073, lng:-117.1566 },
+  { id:"mlb-sf", name:"San Francisco Giants", league:"MLB", city:"San Francisco", state:"CA", venue:"Oracle Park", lat:37.7786, lng:-122.3893 },
+  { id:"mlb-sea", name:"Seattle Mariners", league:"MLB", city:"Seattle", state:"WA", venue:"T-Mobile Park", lat:47.5914, lng:-122.3325 },
+  { id:"mlb-stl", name:"St. Louis Cardinals", league:"MLB", city:"St. Louis", state:"MO", venue:"Busch Stadium", lat:38.6226, lng:-90.1928 },
+  { id:"mlb-tb", name:"Tampa Bay Rays", league:"MLB", city:"St. Petersburg", state:"FL", venue:"Tropicana Field", lat:27.7682, lng:-82.6534 },
+  { id:"mlb-tex", name:"Texas Rangers", league:"MLB", city:"Arlington", state:"TX", venue:"Globe Life Field", lat:32.7473, lng:-97.0842 },
+  { id:"mlb-tor", name:"Toronto Blue Jays", league:"MLB", city:"Toronto", state:"ON", venue:"Rogers Centre", lat:43.6418, lng:-79.3891 },
+  { id:"mlb-was", name:"Washington Nationals", league:"MLB", city:"Washington", state:"DC", venue:"Nationals Park", lat:38.8730, lng:-77.0074 },
+
+  // NFL
+  { id:"nfl-ari", name:"Arizona Cardinals", league:"NFL", city:"Glendale", state:"AZ", venue:"State Farm Stadium", lat:33.5276, lng:-112.2626 },
+  { id:"nfl-atl", name:"Atlanta Falcons", league:"NFL", city:"Atlanta", state:"GA", venue:"Mercedes-Benz Stadium", lat:33.7554, lng:-84.4010 },
+  { id:"nfl-bal", name:"Baltimore Ravens", league:"NFL", city:"Baltimore", state:"MD", venue:"M&T Bank Stadium", lat:39.2780, lng:-76.6227 },
+  { id:"nfl-buf", name:"Buffalo Bills", league:"NFL", city:"Orchard Park", state:"NY", venue:"Highmark Stadium", lat:42.7738, lng:-78.7868 },
+  { id:"nfl-car", name:"Carolina Panthers", league:"NFL", city:"Charlotte", state:"NC", venue:"Bank of America Stadium", lat:35.2258, lng:-80.8528 },
+  { id:"nfl-chi", name:"Chicago Bears", league:"NFL", city:"Chicago", state:"IL", venue:"Soldier Field", lat:41.8625, lng:-87.6166 },
+  { id:"nfl-cin", name:"Cincinnati Bengals", league:"NFL", city:"Cincinnati", state:"OH", venue:"Paycor Stadium", lat:39.0954, lng:-84.5161 },
+  { id:"nfl-cle", name:"Cleveland Browns", league:"NFL", city:"Cleveland", state:"OH", venue:"Cleveland Browns Stadium", lat:41.5060, lng:-81.6995 },
+  { id:"nfl-dal", name:"Dallas Cowboys", league:"NFL", city:"Arlington", state:"TX", venue:"AT&T Stadium", lat:32.7473, lng:-97.0945 },
+  { id:"nfl-den", name:"Denver Broncos", league:"NFL", city:"Denver", state:"CO", venue:"Empower Field at Mile High", lat:39.7439, lng:-105.0201 },
+  { id:"nfl-det", name:"Detroit Lions", league:"NFL", city:"Detroit", state:"MI", venue:"Ford Field", lat:42.3400, lng:-83.0456 },
+  { id:"nfl-gb", name:"Green Bay Packers", league:"NFL", city:"Green Bay", state:"WI", venue:"Lambeau Field", lat:44.5013, lng:-88.0622 },
+  { id:"nfl-hou", name:"Houston Texans", league:"NFL", city:"Houston", state:"TX", venue:"NRG Stadium", lat:29.6847, lng:-95.4107 },
+  { id:"nfl-ind", name:"Indianapolis Colts", league:"NFL", city:"Indianapolis", state:"IN", venue:"Lucas Oil Stadium", lat:39.7601, lng:-86.1639 },
+  { id:"nfl-jax", name:"Jacksonville Jaguars", league:"NFL", city:"Jacksonville", state:"FL", venue:"EverBank Stadium", lat:30.3239, lng:-81.6373 },
+  { id:"nfl-kc", name:"Kansas City Chiefs", league:"NFL", city:"Kansas City", state:"MO", venue:"GEHA Field at Arrowhead Stadium", lat:39.0490, lng:-94.4839 },
+  { id:"nfl-lac", name:"Los Angeles Chargers", league:"NFL", city:"Inglewood", state:"CA", venue:"SoFi Stadium", lat:33.9535, lng:-118.3387 },
+  { id:"nfl-lar", name:"Los Angeles Rams", league:"NFL", city:"Inglewood", state:"CA", venue:"SoFi Stadium", lat:33.9535, lng:-118.3387 },
+  { id:"nfl-lv", name:"Las Vegas Raiders", league:"NFL", city:"Las Vegas", state:"NV", venue:"Allegiant Stadium", lat:36.0909, lng:-115.1834 },
+  { id:"nfl-mia", name:"Miami Dolphins", league:"NFL", city:"Miami Gardens", state:"FL", venue:"Hard Rock Stadium", lat:25.9580, lng:-80.2389 },
+  { id:"nfl-min", name:"Minnesota Vikings", league:"NFL", city:"Minneapolis", state:"MN", venue:"U.S. Bank Stadium", lat:44.9735, lng:-93.2570 },
+  { id:"nfl-ne", name:"New England Patriots", league:"NFL", city:"Foxborough", state:"MA", venue:"Gillette Stadium", lat:42.0909, lng:-71.2643 },
+  { id:"nfl-no", name:"New Orleans Saints", league:"NFL", city:"New Orleans", state:"LA", venue:"Caesars Superdome", lat:29.9510, lng:-90.0812 },
+  { id:"nfl-nyg", name:"New York Giants", league:"NFL", city:"East Rutherford", state:"NJ", venue:"MetLife Stadium", lat:40.8128, lng:-74.0742 },
+  { id:"nfl-nyj", name:"New York Jets", league:"NFL", city:"East Rutherford", state:"NJ", venue:"MetLife Stadium", lat:40.8128, lng:-74.0742 },
+  { id:"nfl-phi", name:"Philadelphia Eagles", league:"NFL", city:"Philadelphia", state:"PA", venue:"Lincoln Financial Field", lat:39.9008, lng:-75.1675 },
+  { id:"nfl-pit", name:"Pittsburgh Steelers", league:"NFL", city:"Pittsburgh", state:"PA", venue:"Acrisure Stadium", lat:40.4468, lng:-80.0158 },
+  { id:"nfl-sf", name:"San Francisco 49ers", league:"NFL", city:"Santa Clara", state:"CA", venue:"Levi's Stadium", lat:37.4030, lng:-121.9690 },
+  { id:"nfl-sea", name:"Seattle Seahawks", league:"NFL", city:"Seattle", state:"WA", venue:"Lumen Field", lat:47.5952, lng:-122.3316 },
+  { id:"nfl-tb", name:"Tampa Bay Buccaneers", league:"NFL", city:"Tampa", state:"FL", venue:"Raymond James Stadium", lat:27.9759, lng:-82.5033 },
+  { id:"nfl-ten", name:"Tennessee Titans", league:"NFL", city:"Nashville", state:"TN", venue:"Nissan Stadium", lat:36.1665, lng:-86.7713 },
+  { id:"nfl-was", name:"Washington Commanders", league:"NFL", city:"Landover", state:"MD", venue:"FedExField", lat:38.9077, lng:-76.8645 },
+
+  // NBA
+  { id:"nba-atl", name:"Atlanta Hawks", league:"NBA", city:"Atlanta", state:"GA", venue:"State Farm Arena", lat:33.7573, lng:-84.3963 },
+  { id:"nba-bos", name:"Boston Celtics", league:"NBA", city:"Boston", state:"MA", venue:"TD Garden", lat:42.3662, lng:-71.0621 },
+  { id:"nba-bkn", name:"Brooklyn Nets", league:"NBA", city:"Brooklyn", state:"NY", venue:"Barclays Center", lat:40.6826, lng:-73.9754 },
+  { id:"nba-cha", name:"Charlotte Hornets", league:"NBA", city:"Charlotte", state:"NC", venue:"Spectrum Center", lat:35.2251, lng:-80.8392 },
+  { id:"nba-chi", name:"Chicago Bulls", league:"NBA", city:"Chicago", state:"IL", venue:"United Center", lat:41.8807, lng:-87.6742 },
+  { id:"nba-cle", name:"Cleveland Cavaliers", league:"NBA", city:"Cleveland", state:"OH", venue:"Rocket Mortgage FieldHouse", lat:41.4966, lng:-81.6880 },
+  { id:"nba-dal", name:"Dallas Mavericks", league:"NBA", city:"Dallas", state:"TX", venue:"American Airlines Center", lat:32.7905, lng:-96.8103 },
+  { id:"nba-den", name:"Denver Nuggets", league:"NBA", city:"Denver", state:"CO", venue:"Ball Arena", lat:39.7487, lng:-105.0077 },
+  { id:"nba-det", name:"Detroit Pistons", league:"NBA", city:"Detroit", state:"MI", venue:"Little Caesars Arena", lat:42.3410, lng:-83.0550 },
+  { id:"nba-gsw", name:"Golden State Warriors", league:"NBA", city:"San Francisco", state:"CA", venue:"Chase Center", lat:37.7680, lng:-122.3875 },
+  { id:"nba-hou", name:"Houston Rockets", league:"NBA", city:"Houston", state:"TX", venue:"Toyota Center", lat:29.7508, lng:-95.3621 },
+  { id:"nba-ind", name:"Indiana Pacers", league:"NBA", city:"Indianapolis", state:"IN", venue:"Gainbridge Fieldhouse", lat:39.7640, lng:-86.1555 },
+  { id:"nba-lac", name:"Los Angeles Clippers", league:"NBA", city:"Los Angeles", state:"CA", venue:"Crypto.com Arena", lat:34.0430, lng:-118.2673 },
+  { id:"nba-lal", name:"Los Angeles Lakers", league:"NBA", city:"Los Angeles", state:"CA", venue:"Crypto.com Arena", lat:34.0430, lng:-118.2673 },
+  { id:"nba-mem", name:"Memphis Grizzlies", league:"NBA", city:"Memphis", state:"TN", venue:"FedExForum", lat:35.1382, lng:-90.0506 },
+  { id:"nba-mia", name:"Miami Heat", league:"NBA", city:"Miami", state:"FL", venue:"Kaseya Center", lat:25.7814, lng:-80.1870 },
+  { id:"nba-mil", name:"Milwaukee Bucks", league:"NBA", city:"Milwaukee", state:"WI", venue:"Fiserv Forum", lat:43.0451, lng:-87.9172 },
+  { id:"nba-min", name:"Minnesota Timberwolves", league:"NBA", city:"Minneapolis", state:"MN", venue:"Target Center", lat:44.9795, lng:-93.2760 },
+  { id:"nba-nop", name:"New Orleans Pelicans", league:"NBA", city:"New Orleans", state:"LA", venue:"Smoothie King Center", lat:29.9490, lng:-90.0821 },
+  { id:"nba-nyk", name:"New York Knicks", league:"NBA", city:"New York", state:"NY", venue:"Madison Square Garden", lat:40.7505, lng:-73.9934 },
+  { id:"nba-okc", name:"Oklahoma City Thunder", league:"NBA", city:"Oklahoma City", state:"OK", venue:"Paycom Center", lat:35.4634, lng:-97.5151 },
+  { id:"nba-orl", name:"Orlando Magic", league:"NBA", city:"Orlando", state:"FL", venue:"Kia Center", lat:28.5392, lng:-81.3839 },
+  { id:"nba-phi", name:"Philadelphia 76ers", league:"NBA", city:"Philadelphia", state:"PA", venue:"Wells Fargo Center", lat:39.9012, lng:-75.1720 },
+  { id:"nba-phx", name:"Phoenix Suns", league:"NBA", city:"Phoenix", state:"AZ", venue:"Footprint Center", lat:33.4457, lng:-112.0714 },
+  { id:"nba-por", name:"Portland Trail Blazers", league:"NBA", city:"Portland", state:"OR", venue:"Moda Center", lat:45.5316, lng:-122.6668 },
+  { id:"nba-sac", name:"Sacramento Kings", league:"NBA", city:"Sacramento", state:"CA", venue:"Golden 1 Center", lat:38.5802, lng:-121.4997 },
+  { id:"nba-sas", name:"San Antonio Spurs", league:"NBA", city:"San Antonio", state:"TX", venue:"Frost Bank Center", lat:29.4270, lng:-98.4375 },
+  { id:"nba-tor", name:"Toronto Raptors", league:"NBA", city:"Toronto", state:"ON", venue:"Scotiabank Arena", lat:43.6435, lng:-79.3791 },
+  { id:"nba-uta", name:"Utah Jazz", league:"NBA", city:"Salt Lake City", state:"UT", venue:"Delta Center", lat:40.7683, lng:-111.9011 },
+  { id:"nba-was", name:"Washington Wizards", league:"NBA", city:"Washington", state:"DC", venue:"Capital One Arena", lat:38.8981, lng:-77.0208 },
+
+  // NHL
+  { id:"nhl-ana", name:"Anaheim Ducks", league:"NHL", city:"Anaheim", state:"CA", venue:"Honda Center", lat:33.8078, lng:-117.8760 },
+  { id:"nhl-ari", name:"Arizona Coyotes", league:"NHL", city:"Tempe", state:"AZ", venue:"Mullett Arena", lat:33.4264, lng:-111.9346 },
+  { id:"nhl-bos", name:"Boston Bruins", league:"NHL", city:"Boston", state:"MA", venue:"TD Garden", lat:42.3662, lng:-71.0621 },
+  { id:"nhl-buf", name:"Buffalo Sabres", league:"NHL", city:"Buffalo", state:"NY", venue:"KeyBank Center", lat:42.8756, lng:-78.8769 },
+  { id:"nhl-car", name:"Carolina Hurricanes", league:"NHL", city:"Raleigh", state:"NC", venue:"PNC Arena", lat:35.8033, lng:-78.7219 },
+  { id:"nhl-cbj", name:"Columbus Blue Jackets", league:"NHL", city:"Columbus", state:"OH", venue:"Nationwide Arena", lat:39.9692, lng:-83.0060 },
+  { id:"nhl-cgy", name:"Calgary Flames", league:"NHL", city:"Calgary", state:"AB", venue:"Scotiabank Saddledome", lat:51.0374, lng:-114.0519 },
+  { id:"nhl-chi", name:"Chicago Blackhawks", league:"NHL", city:"Chicago", state:"IL", venue:"United Center", lat:41.8807, lng:-87.6742 },
+  { id:"nhl-col", name:"Colorado Avalanche", league:"NHL", city:"Denver", state:"CO", venue:"Ball Arena", lat:39.7487, lng:-105.0077 },
+  { id:"nhl-dal", name:"Dallas Stars", league:"NHL", city:"Dallas", state:"TX", venue:"American Airlines Center", lat:32.7905, lng:-96.8103 },
+  { id:"nhl-det", name:"Detroit Red Wings", league:"NHL", city:"Detroit", state:"MI", venue:"Little Caesars Arena", lat:42.3410, lng:-83.0550 },
+  { id:"nhl-edm", name:"Edmonton Oilers", league:"NHL", city:"Edmonton", state:"AB", venue:"Rogers Place", lat:53.5465, lng:-113.4973 },
+  { id:"nhl-fla", name:"Florida Panthers", league:"NHL", city:"Sunrise", state:"FL", venue:"Amerant Bank Arena", lat:26.1584, lng:-80.3259 },
+  { id:"nhl-la", name:"Los Angeles Kings", league:"NHL", city:"Los Angeles", state:"CA", venue:"Crypto.com Arena", lat:34.0430, lng:-118.2673 },
+  { id:"nhl-min", name:"Minnesota Wild", league:"NHL", city:"St. Paul", state:"MN", venue:"Xcel Energy Center", lat:44.9447, lng:-93.1014 },
+  { id:"nhl-mtl", name:"Montreal Canadiens", league:"NHL", city:"Montreal", state:"QC", venue:"Bell Centre", lat:45.4961, lng:-73.5693 },
+  { id:"nhl-nsh", name:"Nashville Predators", league:"NHL", city:"Nashville", state:"TN", venue:"Bridgestone Arena", lat:36.1592, lng:-86.7785 },
+  { id:"nhl-nj", name:"New Jersey Devils", league:"NHL", city:"Newark", state:"NJ", venue:"Prudential Center", lat:40.7336, lng:-74.1710 },
+  { id:"nhl-nyi", name:"New York Islanders", league:"NHL", city:"Elmont", state:"NY", venue:"UBS Arena", lat:40.7135, lng:-73.7260 },
+  { id:"nhl-nyr", name:"New York Rangers", league:"NHL", city:"New York", state:"NY", venue:"Madison Square Garden", lat:40.7505, lng:-73.9934 },
+  { id:"nhl-ott", name:"Ottawa Senators", league:"NHL", city:"Ottawa", state:"ON", venue:"Canadian Tire Centre", lat:45.2967, lng:-75.9250 },
+  { id:"nhl-phi", name:"Philadelphia Flyers", league:"NHL", city:"Philadelphia", state:"PA", venue:"Wells Fargo Center", lat:39.9012, lng:-75.1720 },
+  { id:"nhl-pit", name:"Pittsburgh Penguins", league:"NHL", city:"Pittsburgh", state:"PA", venue:"PPG Paints Arena", lat:40.4390, lng:-79.9892 },
+  { id:"nhl-sj", name:"San Jose Sharks", league:"NHL", city:"San Jose", state:"CA", venue:"SAP Center", lat:37.3328, lng:-121.9010 },
+  { id:"nhl-sea", name:"Seattle Kraken", league:"NHL", city:"Seattle", state:"WA", venue:"Climate Pledge Arena", lat:47.6221, lng:-122.3540 },
+  { id:"nhl-stl", name:"St. Louis Blues", league:"NHL", city:"St. Louis", state:"MO", venue:"Enterprise Center", lat:38.6269, lng:-90.2023 },
+  { id:"nhl-tb", name:"Tampa Bay Lightning", league:"NHL", city:"Tampa", state:"FL", venue:"Amalie Arena", lat:27.9427, lng:-82.4517 },
+  { id:"nhl-tor", name:"Toronto Maple Leafs", league:"NHL", city:"Toronto", state:"ON", venue:"Scotiabank Arena", lat:43.6435, lng:-79.3791 },
+  { id:"nhl-van", name:"Vancouver Canucks", league:"NHL", city:"Vancouver", state:"BC", venue:"Rogers Arena", lat:49.2777, lng:-123.1080 },
+  { id:"nhl-vgk", name:"Vegas Golden Knights", league:"NHL", city:"Las Vegas", state:"NV", venue:"T-Mobile Arena", lat:36.1029, lng:-115.1785 },
+  { id:"nhl-wpg", name:"Winnipeg Jets", league:"NHL", city:"Winnipeg", state:"MB", venue:"Canada Life Centre", lat:49.8929, lng:-97.1430 },
+  { id:"nhl-wsh", name:"Washington Capitals", league:"NHL", city:"Washington", state:"DC", venue:"Capital One Arena", lat:38.8981, lng:-77.0208 }
+];
+
+
+/* =============================
+   4. IDs & VISITED STATE
+============================= */
+parks.forEach((p, idx) => {
+  p.id = "park-" + idx;
+});
+
+const VISITED_PARKS_KEY = "naParksVisited_v1";
+const VISITED_TEAMS_KEY = "naTeamsVisited_v1";
+
+function loadVisited(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw));
+  } catch {
+    return new Set();
+  }
+}
+
+const visitedParkIds = loadVisited(VISITED_PARKS_KEY);
+const visitedTeamIds = loadVisited(VISITED_TEAMS_KEY);
+
+function saveVisited(key, set) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...set]));
+  } catch {}
+}
+
+function isParkVisited(p) { return visitedParkIds.has(p.id); }
+function isTeamVisited(t) { return visitedTeamIds.has(t.id); }
+
+function setParkVisited(p, visited) {
+  if (visited) visitedParkIds.add(p.id); else visitedParkIds.delete(p.id);
+  saveVisited(VISITED_PARKS_KEY, visitedParkIds);
+  updateVisitSummary();
+}
+
+function setTeamVisited(t, visited) {
+  if (visited) visitedTeamIds.add(t.id); else visitedTeamIds.delete(t.id);
+  saveVisited(VISITED_TEAMS_KEY, visitedTeamIds);
+  updateVisitSummary();
+}
+
+
+/* =============================
+   5. CLUSTER & MARKER STORAGE
+============================= */
+const allCluster = L.markerClusterGroup({
+  maxClusterRadius: 25,          // smaller number = tighter clustering
+  disableClusteringAtZoom: 6    // optional: stop clustering when fairly zoomed in
+});
+map.addLayer(allCluster);
+
+const parkMarkerById = new Map();
+const teamMarkerById = new Map();
+
+const parkMarkersUS = [];
+const parkMarkersCA = [];
+const teamMarkersMLB = [];
+const teamMarkersNFL = [];
+const teamMarkersNBA = [];
+const teamMarkersNHL = [];
+
+
+function offsetForLeague(league, lat) {
+  // base offset in degrees – tiny, tweak as needed
+  // scale by cos(lat) so east/west distance is consistent
+  const base = 0.15;
+  const d = base * Math.cos(lat * Math.PI / 180);
+
+  switch (league) {
+    case "MLB": return [0,  d];   // east
+    case "NFL": return [ d, 0];   // north
+    case "NBA": return [0, -d];   // west
+    case "NHL": return [-d, 0];   // south
+    default:    return [0,  0];
+  }
+}
+
+
+/* =============================
+   6. ICONS
+============================= */
+function circleIcon(color) {
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18">' +
+    '<circle cx="9" cy="9" r="6" fill="'+color+'" stroke="#ffffff" stroke-width="2" />' +
+    '</svg>';
+  return L.divIcon({
+    html: svg,
+    className: "",
+    iconSize: [18, 18],
+    iconAnchor: [9, 9]
+  });
+}
+
+function parkIcon(p) {
+  const color = isParkVisited(p) ? "#00aa55" : "#0077ff";
+  return circleIcon(color);
+}
+
+function teamIcon(team) {
+  const visited = isTeamVisited(team);
+  const leagueColors = {
+    MLB: "#f44336",
+    NFL: "#795548",
+    NBA: "#ff9800",
+    NHL: "#000000"
+  };
+  const baseColor = leagueColors[team.league] || "#9c27b0";
+  const color = visited ? "#00aa55" : baseColor;
+
+  let svg = "";
+
+  if (team.league === "MLB") {
+    // Baseball
+    svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" fill="${color}" stroke="#ffffff" stroke-width="2" />
+        <path d="M8 8c2 2 2 6 0 8" stroke="#ffffff" stroke-width="1.5" fill="none"/>
+        <path d="M16 8c-2 2-2 6 0 8" stroke="#ffffff" stroke-width="1.5" fill="none"/>
+      </svg>
+    `;
+  } else if (team.league === "NFL") {
+    // Football
+    svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24">
+        <path d="M4 12c0-4 4-7 8-7s8 3 8 7-4 7-8 7-8-3-8-7z" fill="${color}" stroke="#ffffff" stroke-width="2"/>
+        <line x1="8" y1="12" x2="16" y2="12" stroke="#ffffff" stroke-width="1.5"/>
+        <line x1="10" y1="10.5" x2="10" y2="13.5" stroke="#ffffff" stroke-width="1.2"/>
+        <line x1="12" y1="10.5" x2="12" y2="13.5" stroke="#ffffff" stroke-width="1.2"/>
+        <line x1="14" y1="10.5" x2="14" y2="13.5" stroke="#ffffff" stroke-width="1.2"/>
+      </svg>
+    `;
+  } else if (team.league === "NBA") {
+    // Basketball
+    svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" fill="${color}" stroke="#ffffff" stroke-width="2" />
+        <path d="M12 3v18" stroke="#ffffff" stroke-width="1.5" fill="none"/>
+        <path d="M5 9c2 1 4 1 7 1s5 0 7-1" stroke="#ffffff" stroke-width="1.5" fill="none"/>
+        <path d="M5 15c2-1 4-1 7-1s5 0 7 1" stroke="#ffffff" stroke-width="1.5" fill="none"/>
+      </svg>
+    `;
+  } else if (team.league === "NHL") {
+    // Hockey puck
+    svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+        <ellipse cx="12" cy="9" rx="8" ry="3" fill="${color}" stroke="#ffffff" stroke-width="1.5" />
+        <rect x="4" y="9" width="16" height="6" rx="2" ry="2" fill="${color}" stroke="#ffffff" stroke-width="1.5"/>
+        <ellipse cx="12" cy="15" rx="8" ry="3" fill="${color}" stroke="#ffffff" stroke-width="1.5" />
+      </svg>
+    `;
+  } else {
+    svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+        <circle cx="9" cy="9" r="6" fill="${color}" stroke="#ffffff" stroke-width="2" />
+      </svg>
+    `;
+  }
+
+  return L.divIcon({
+    html: svg,
+    className: "",
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  });
+}
+
+
+
+
+
+/* =============================
+   7. CREATE MARKERS
+============================= */
+// Parks
+parks.forEach(p => {
+  const marker = L.marker([p.lat, p.lng], { icon: parkIcon(p) });
+  marker.bindPopup(
+    "<strong>"+p.name+"</strong><br/>"+
+    p.country + (p.region ? " – "+p.region : "") +
+    "<br/><em>"+(isParkVisited(p) ? "Visited" : "Not visited")+"</em>"
+  );
+
+  parkMarkerById.set(p.id, marker);
+  if (p.country === "Canada") parkMarkersCA.push(marker);
+  else parkMarkersUS.push(marker);
+
+  allCluster.addLayer(marker);
+});
+
+// Teams
+sportsTeams.forEach(t => {
+  const [dLat, dLng] = offsetForLeague(t.league, t.lat);
+const marker = L.marker([t.lat + dLat, t.lng + dLng], {
+  icon: teamIcon(t)
+});
+
+  marker.bindPopup(
+    "<strong>"+t.name+"</strong><br/>"+
+    t.league+" – "+t.city+", "+t.state+
+    "<br/><small>"+t.venue+"</small>"+
+    "<br/><em>"+(isTeamVisited(t) ? "Visited" : "Not visited")+"</em>"
+  );
+
+  teamMarkerById.set(t.id, marker);
+
+  if (t.league === "MLB") teamMarkersMLB.push(marker);
+  else if (t.league === "NFL") teamMarkersNFL.push(marker);
+  else if (t.league === "NBA") teamMarkersNBA.push(marker);
+  else if (t.league === "NHL") teamMarkersNHL.push(marker);
+
+  allCluster.addLayer(marker);
+});
+
+
+/* =============================
+   8. TOGGLES (ADD/REMOVE FROM CLUSTER)
+============================= */
+function setMarkersVisible(arr, visible) {
+  arr.forEach(m => {
+    if (visible) allCluster.addLayer(m);
+    else allCluster.removeLayer(m);
+  });
+}
+
+document.getElementById("usToggle").addEventListener("change", e => {
+  setMarkersVisible(parkMarkersUS, e.target.checked);
+});
+document.getElementById("caToggle").addEventListener("change", e => {
+  setMarkersVisible(parkMarkersCA, e.target.checked);
+});
+document.getElementById("mlbToggle").addEventListener("change", e => {
+  setMarkersVisible(teamMarkersMLB, e.target.checked);
+});
+document.getElementById("nflToggle").addEventListener("change", e => {
+  setMarkersVisible(teamMarkersNFL, e.target.checked);
+});
+document.getElementById("nbaToggle").addEventListener("change", e => {
+  setMarkersVisible(teamMarkersNBA, e.target.checked);
+});
+document.getElementById("nhlToggle").addEventListener("change", e => {
+  setMarkersVisible(teamMarkersNHL, e.target.checked);
+});
+
+
+/* =============================
+   9. SIDEBAR LISTS & VISIT TOGGLING
+============================= */
+const parkListEl = document.getElementById("parkList");
+const teamListEl = document.getElementById("teamList");
+const visitSummaryEl = document.getElementById("visitSummary");
+const tabParksBtn = document.getElementById("tabParks");
+const tabTeamsBtn = document.getElementById("tabTeams");
+const hintParks = document.getElementById("hintParks");
+const hintTeams = document.getElementById("hintTeams");
+
+function updateVisitSummary() {
+  visitSummaryEl.textContent =
+    visitedParkIds.size + " parks / " + visitedTeamIds.size + " teams";
+}
+updateVisitSummary();
+
+function refreshParkMarker(p) {
+  const m = parkMarkerById.get(p.id);
+  if (!m) return;
+  m.setIcon(parkIcon(p));
+  m.bindPopup(
+    "<strong>"+p.name+"</strong><br/>"+
+    p.country + (p.region ? " – "+p.region : "")+
+    "<br/><em>"+(isParkVisited(p) ? "Visited" : "Not visited")+"</em>"
+  );
+}
+
+function refreshTeamMarker(t) {
+  const m = teamMarkerById.get(t.id);
+  if (!m) return;
+  m.setIcon(teamIcon(t));
+  m.bindPopup(
+    "<strong>"+t.name+"</strong><br/>"+
+    t.league+" – "+t.city+", "+t.state+
+    "<br/><small>"+t.venue+"</small>"+
+    "<br/><em>"+(isTeamVisited(t) ? "Visited" : "Not visited")+"</em>"
+  );
+}
+
+// Build park list
+parks.slice().sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
+  const li = document.createElement("li");
+  const label = document.createElement("label");
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = isParkVisited(p);
+  cb.addEventListener("change", e => {
+    setParkVisited(p, cb.checked);
+    refreshParkMarker(p);
+    e.stopPropagation();
+  });
+  label.appendChild(cb);
+  label.append(" " + p.name);
+  li.appendChild(label);
+  li.addEventListener("click", () => {
+    const m = parkMarkerById.get(p.id);
+    if (m) {
+      map.setView(m.getLatLng(), 6);
+      m.openPopup();
+    }
+  });
+  parkListEl.appendChild(li);
+});
+
+// Build team list
+sportsTeams.slice().sort((a,b) => {
+  if (a.league === b.league) return a.name.localeCompare(b.name);
+  return a.league.localeCompare(b.league);
+}).forEach(t => {
+  const li = document.createElement("li");
+  const label = document.createElement("label");
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = isTeamVisited(t);
+  cb.addEventListener("change", e => {
+    setTeamVisited(t, cb.checked);
+    refreshTeamMarker(t);
+    e.stopPropagation();
+  });
+  label.appendChild(cb);
+  label.append(" ["+t.league+"] " + t.name);
+  li.appendChild(label);
+  li.addEventListener("click", () => {
+    const m = teamMarkerById.get(t.id);
+    if (m) {
+      map.setView(m.getLatLng(), 8);
+      m.openPopup();
+    }
+  });
+  teamListEl.appendChild(li);
+});
+
+// Tabs
+function showParksTab() {
+  tabParksBtn.classList.add("active");
+  tabTeamsBtn.classList.remove("active");
+  parkListEl.classList.remove("hidden");
+  teamListEl.classList.add("hidden");
+  hintParks.classList.remove("hidden");
+  hintTeams.classList.add("hidden");
+}
+function showTeamsTab() {
+  tabTeamsBtn.classList.add("active");
+  tabParksBtn.classList.remove("active");
+  teamListEl.classList.remove("hidden");
+  parkListEl.classList.add("hidden");
+  hintTeams.classList.remove("hidden");
+  hintParks.classList.add("hidden");
+}
+
+tabParksBtn.addEventListener("click", showParksTab);
+tabTeamsBtn.addEventListener("click", showTeamsTab);
+
+</script>
+</body>
+</html>
