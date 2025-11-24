@@ -148,6 +148,27 @@
       display: none;
     }
 
+    #visitSummary {
+      font-size: 12px;
+    }
+    
+    #progressContainer {
+      width: 100%;
+      height: 4px;
+      background: #eee;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background: #007bff; /* or whatever color you like */
+      transition: width 0.2s ease-out;
+    }
+
+
   </style>
 </head>
 <body>
@@ -187,8 +208,14 @@
 <div class="sidebar">
   <div class="sidebar-header">
     <strong>Your checklist</strong>
-    <span id="visitSummary">0 parks / 0 teams</span>
+    <div style="width: 100%;">
+      <span id="visitSummary">0 / 0</span>
+      <div id="progressContainer">
+        <div id="progressBar"></div>
+      </div>
+    </div>
   </div>
+
 
   <!-- Category selector -->
   <div class="sidebar-tabs">
@@ -859,6 +886,7 @@ const teamListNHLEl = document.getElementById("teamListNHL");
 const visitSummaryEl = document.getElementById("visitSummary");
 
 const categorySelect = document.getElementById("categorySelect");
+const progressBarEl = document.getElementById("progressBar");
 const categorySections = document.querySelectorAll(".category-section");
 
 function showCategory(cat) {
@@ -874,16 +902,66 @@ function showCategory(cat) {
 // change handler
 categorySelect.addEventListener("change", e => {
   showCategory(e.target.value);
+  updateVisitSummary();
 });
 
 // initial state (show US parks by default)
 showCategory(categorySelect.value);
+updateVisitSummary();
 
 
 function updateVisitSummary() {
-  visitSummaryEl.textContent =
-    visitedParkIds.size + " parks / " + visitedTeamIds.size + " teams";
+  const cat = categorySelect.value;
+  let visited = 0;
+  let total = 0;
+  let label = "";
+
+  if (cat === "parks-us") {
+    const list = parks.filter(p => p.country === "US" && p.type !== "state");
+    total = list.length;
+    visited = list.filter(isParkVisited).length;
+    label = "US National Parks";
+  } else if (cat === "parks-ca") {
+    const list = parks.filter(p => p.country === "Canada");
+    total = list.length;
+    visited = list.filter(isParkVisited).length;
+    label = "Canada National Parks";
+  } else if (cat === "parks-wi") {
+    const list = parks.filter(p => p.type === "state");
+    total = list.length;
+    visited = list.filter(isParkVisited).length;
+    label = "WI State Parks";
+  } else if (cat === "mlb") {
+    const list = sportsTeams.filter(t => t.league === "MLB");
+    total = list.length;
+    visited = list.filter(isTeamVisited).length;
+    label = "MLB Teams";
+  } else if (cat === "nfl") {
+    const list = sportsTeams.filter(t => t.league === "NFL");
+    total = list.length;
+    visited = list.filter(isTeamVisited).length;
+    label = "NFL Teams";
+  } else if (cat === "nba") {
+    const list = sportsTeams.filter(t => t.league === "NBA");
+    total = list.length;
+    visited = list.filter(isTeamVisited).length;
+    label = "NBA Teams";
+  } else if (cat === "nhl") {
+    const list = sportsTeams.filter(t => t.league === "NHL");
+    total = list.length;
+    visited = list.filter(isTeamVisited).length;
+    label = "NHL Teams";
+  }
+
+  const percent = total > 0 ? Math.round((visited / total) * 100) : 0;
+
+  // Text: "NFL Teams: 5 / 30 (17%)"
+  visitSummaryEl.textContent = `${label}: ${visited} / ${total} (${percent}%)`;
+
+  // Progress bar width
+  progressBarEl.style.width = `${percent}%`;
 }
+
 updateVisitSummary();
 
 function refreshParkMarker(p) {
@@ -1001,6 +1079,7 @@ function addTeamRow(t, listEl) {
 </script>
 </body>
 </html>
+
 
 
 
