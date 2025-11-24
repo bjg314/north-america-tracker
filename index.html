@@ -177,41 +177,58 @@
     <span id="visitSummary">0 parks / 0 teams</span>
   </div>
 
-  <div class="sidebar-section">
+  <!-- Category selector -->
+  <div class="sidebar-tabs">
+    <label for="categorySelect" style="font-size: 12px; margin-right: 4px;">
+      Category:
+    </label>
+    <select id="categorySelect">
+      <option value="parks-us">US National Parks</option>
+      <option value="parks-ca">Canada National Parks</option>
+      <option value="parks-wi">Wisconsin State Parks</option>
+      <option value="mlb">MLB Teams</option>
+      <option value="nfl">NFL Teams</option>
+      <option value="nba">NBA Teams</option>
+      <option value="nhl">NHL Teams</option>
+    </select>
+  </div>
+
+  <div class="sidebar-section category-section" data-category="parks-us">
     <h4>US National Parks</h4>
     <ul id="parkListUS" class="sidebar-list"></ul>
   </div>
 
-  <div class="sidebar-section">
+  <div class="sidebar-section category-section" data-category="parks-ca">
     <h4>Canada National Parks</h4>
     <ul id="parkListCA" class="sidebar-list"></ul>
   </div>
 
-  <div class="sidebar-section">
+  <div class="sidebar-section category-section" data-category="parks-wi">
     <h4>Wisconsin State Parks</h4>
     <ul id="parkListWI" class="sidebar-list"></ul>
   </div>
 
-  <div class="sidebar-section">
+  <div class="sidebar-section category-section" data-category="mlb">
     <h4>MLB Teams</h4>
     <ul id="teamListMLB" class="sidebar-list"></ul>
   </div>
 
-  <div class="sidebar-section">
+  <div class="sidebar-section category-section" data-category="nfl">
     <h4>NFL Teams</h4>
     <ul id="teamListNFL" class="sidebar-list"></ul>
   </div>
 
-  <div class="sidebar-section">
+  <div class="sidebar-section category-section" data-category="nba">
     <h4>NBA Teams</h4>
     <ul id="teamListNBA" class="sidebar-list"></ul>
   </div>
 
-  <div class="sidebar-section">
+  <div class="sidebar-section category-section" data-category="nhl">
     <h4>NHL Teams</h4>
     <ul id="teamListNHL" class="sidebar-list"></ul>
   </div>
 </div>
+
 
 
 <!-- Leaflet JS -->
@@ -828,6 +845,27 @@ const teamListNHLEl = document.getElementById("teamListNHL");
 
 const visitSummaryEl = document.getElementById("visitSummary");
 
+  const categorySelect = document.getElementById("categorySelect");
+const categorySections = document.querySelectorAll(".category-section");
+
+function showCategory(cat) {
+  categorySections.forEach(sec => {
+    if (sec.dataset.category === cat) {
+      sec.classList.remove("hidden");
+    } else {
+      sec.classList.add("hidden");
+    }
+  });
+}
+
+// change handler
+categorySelect.addEventListener("change", e => {
+  showCategory(e.target.value);
+});
+
+// initial state (show US parks by default)
+showCategory(categorySelect.value);
+
 
 function updateVisitSummary() {
   visitSummaryEl.textContent =
@@ -950,6 +988,7 @@ function addTeamRow(t, listEl) {
 </script>
 </body>
 </html>
+
 
 
 
