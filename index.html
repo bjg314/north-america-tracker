@@ -93,20 +93,6 @@
       margin-bottom: 4px;
       gap: 8px;
     }
-    .sidebar-auth {
-      display: flex;
-      gap: 4px;
-      margin-bottom: 4px;
-    }
-    .sidebar-auth button {
-      flex: 1;
-      font-size: 11px;
-      padding: 3px 4px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-      background: #f5f5f5;
-      cursor: pointer;
-    }
     .sidebar-tabs {
       display: flex;
       gap: 4px;
@@ -190,11 +176,6 @@
     <span id="visitSummary">0 parks / 0 teams</span>
   </div>
 
-  <div class="sidebar-auth">
-    <button id="loginBtn">Sign in with Google</button>
-    <button id="logoutBtn" class="hidden">Sign out</button>
-  </div>
-
   <div class="sidebar-tabs">
     <button id="tabParks" class="active">Parks</button>
     <button id="tabTeams">Teams</button>
@@ -207,72 +188,12 @@
   <ul id="teamList" class="sidebar-list hidden"></ul>
 </div>
 
-<!-- Firebase (compat SDKs so they work in plain script tags) -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <!-- MarkerCluster JS -->
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
 <script>
-/* =============================
-   0. FIREBASE INIT & AUTH
-============================= */
-// Replace these placeholder values with your Firebase config
-// (Firebase console → Project settings → General → Your apps → Web app)
-const firebaseConfig = {
-  apiKey: "AIzaSyDp8Dkg58QhB6hR6tlqoma7nmKDdbqZb3Q",
-  authDomain: "north-america-map-fe630.firebaseapp.com",
-  projectId: "north-america-map-fe630",
-  storageBucket: "north-america-map-fe630.firebasestorage.app",
-  messagingSenderId: "487633885996",
-  appId: "1:487633885996:web:ab8ea217b0640e8b476a89",
-};
-
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
-
-let currentUser = null;
-
-const loginBtn = document.getElementById("loginBtn");
-const logoutBtn = document.getElementById("logoutBtn");
-
-loginBtn.addEventListener("click", async () => {
-  const provider = new firebase.auth.GoogleAuthProvider();
-  try {
-    await auth.signInWithPopup(provider);
-  } catch (err) {
-    console.error("Login failed", err);
-    alert("Login failed: " + err.message);
-  }
-});
-
-logoutBtn.addEventListener("click", async () => {
-  try {
-    await auth.signOut();
-  } catch (err) {
-    console.error("Logout failed", err);
-  }
-});
-
-auth.onAuthStateChanged(async (user) => {
-  currentUser = user;
-  if (user) {
-    loginBtn.classList.add("hidden");
-    logoutBtn.classList.remove("hidden");
-    await loadUserDataFromFirestore();
-  } else {
-    loginBtn.classList.remove("hidden");
-    logoutBtn.classList.add("hidden");
-    // fallback is localStorage-only when logged out
-  }
-});
-
-
 /* =============================
    1. MAP SETUP
 ============================= */
@@ -577,55 +498,16 @@ function saveVisited(key, set) {
 function isParkVisited(p) { return visitedParkIds.has(p.id); }
 function isTeamVisited(t) { return visitedTeamIds.has(t.id); }
 
-async function syncUserDataToFirestore() {
-  if (!currentUser) return;
-  try {
-    const docRef = db.collection("users").doc(currentUser.uid);
-    await docRef.set({
-      visitedParks: [...visitedParkIds],
-      visitedTeams: [...visitedTeamIds],
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-  } catch (err) {
-    console.error("Failed to sync to Firestore", err);
-  }
-}
-
-async function loadUserDataFromFirestore() {
-  if (!currentUser) return;
-  try {
-    const docRef = db.collection("users").doc(currentUser.uid);
-    const snap = await docRef.get();
-    if (snap.exists) {
-      const data = snap.data();
-      visitedParkIds.clear();
-      visitedTeamIds.clear();
-      (data.visitedParks || []).forEach(id => visitedParkIds.add(id));
-      (data.visitedTeams || []).forEach(id => visitedTeamIds.add(id));
-      saveVisited(VISITED_PARKS_KEY, visitedParkIds);
-      saveVisited(VISITED_TEAMS_KEY, visitedTeamIds);
-      refreshAllVisitedUI();
-    } else {
-      // first time for this user: seed with current local state
-      await syncUserDataToFirestore();
-    }
-  } catch (err) {
-    console.error("Failed to load user data from Firestore", err);
-  }
-}
-
 function setParkVisited(p, visited) {
   if (visited) visitedParkIds.add(p.id); else visitedParkIds.delete(p.id);
   saveVisited(VISITED_PARKS_KEY, visitedParkIds);
   updateVisitSummary();
-  syncUserDataToFirestore();
 }
 
 function setTeamVisited(t, visited) {
   if (visited) visitedTeamIds.add(t.id); else visitedTeamIds.delete(t.id);
   saveVisited(VISITED_TEAMS_KEY, visitedTeamIds);
   updateVisitSummary();
-  syncUserDataToFirestore();
 }
 
 
@@ -633,8 +515,8 @@ function setTeamVisited(t, visited) {
    5. CLUSTER & MARKER STORAGE
 ============================= */
 const allCluster = L.markerClusterGroup({
-  maxClusterRadius: 25,
-  disableClusteringAtZoom: 6
+  maxClusterRadius: 25,          // smaller number = tighter clustering
+  disableClusteringAtZoom: 6    // optional: stop clustering when fairly zoomed in
 });
 map.addLayer(allCluster);
 
@@ -650,6 +532,8 @@ const teamMarkersNHL = [];
 
 
 function offsetForLeague(league, lat) {
+  // base offset in degrees – tiny, tweak as needed
+  // scale by cos(lat) so east/west distance is consistent
   const base = 0.15;
   const d = base * Math.cos(lat * Math.PI / 180);
 
@@ -753,6 +637,9 @@ function teamIcon(team) {
 }
 
 
+
+
+
 /* =============================
    7. CREATE MARKERS
 ============================= */
@@ -775,9 +662,9 @@ parks.forEach(p => {
 // Teams
 sportsTeams.forEach(t => {
   const [dLat, dLng] = offsetForLeague(t.league, t.lat);
-  const marker = L.marker([t.lat + dLat, t.lng + dLng], {
-    icon: teamIcon(t)
-  });
+const marker = L.marker([t.lat + dLat, t.lng + dLng], {
+  icon: teamIcon(t)
+});
 
   marker.bindPopup(
     "<strong>"+t.name+"</strong><br/>"+
@@ -867,34 +754,9 @@ function refreshTeamMarker(t) {
   );
 }
 
-function refreshAllVisitedUI() {
-  // Parks
-  parks.forEach(p => {
-    const li = parkListEl.querySelector(`li[data-id="${p.id}"]`);
-    if (li) {
-      const cb = li.querySelector("input[type=checkbox]");
-      if (cb) cb.checked = isParkVisited(p);
-    }
-    refreshParkMarker(p);
-  });
-
-  // Teams
-  sportsTeams.forEach(t => {
-    const li = teamListEl.querySelector(`li[data-id="${t.id}"]`);
-    if (li) {
-      const cb = li.querySelector("input[type=checkbox]");
-      if (cb) cb.checked = isTeamVisited(t);
-    }
-    refreshTeamMarker(t);
-  });
-
-  updateVisitSummary();
-}
-
 // Build park list
 parks.slice().sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
   const li = document.createElement("li");
-  li.dataset.id = p.id;
   const label = document.createElement("label");
   const cb = document.createElement("input");
   cb.type = "checkbox";
@@ -923,7 +785,6 @@ sportsTeams.slice().sort((a,b) => {
   return a.league.localeCompare(b.league);
 }).forEach(t => {
   const li = document.createElement("li");
-  li.dataset.id = t.id;
   const label = document.createElement("label");
   const cb = document.createElement("input");
   cb.type = "checkbox";
