@@ -177,17 +177,42 @@
     <span id="visitSummary">0 parks / 0 teams</span>
   </div>
 
-  <div class="sidebar-tabs">
-    <button id="tabParks" class="active">Parks</button>
-    <button id="tabTeams">Teams</button>
+  <div class="sidebar-section">
+    <h4>US National Parks</h4>
+    <ul id="parkListUS" class="sidebar-list"></ul>
   </div>
 
-  <small id="hintParks">Mark parks visited. Click a row to zoom.</small>
-  <small id="hintTeams" class="hidden">Mark stadiums/arenas visited. Click a row to zoom.</small>
+  <div class="sidebar-section">
+    <h4>Canada National Parks</h4>
+    <ul id="parkListCA" class="sidebar-list"></ul>
+  </div>
 
-  <ul id="parkList" class="sidebar-list"></ul>
-  <ul id="teamList" class="sidebar-list hidden"></ul>
+  <div class="sidebar-section">
+    <h4>Wisconsin State Parks</h4>
+    <ul id="parkListWI" class="sidebar-list"></ul>
+  </div>
+
+  <div class="sidebar-section">
+    <h4>MLB Teams</h4>
+    <ul id="teamListMLB" class="sidebar-list"></ul>
+  </div>
+
+  <div class="sidebar-section">
+    <h4>NFL Teams</h4>
+    <ul id="teamListNFL" class="sidebar-list"></ul>
+  </div>
+
+  <div class="sidebar-section">
+    <h4>NBA Teams</h4>
+    <ul id="teamListNBA" class="sidebar-list"></ul>
+  </div>
+
+  <div class="sidebar-section">
+    <h4>NHL Teams</h4>
+    <ul id="teamListNHL" class="sidebar-list"></ul>
+  </div>
 </div>
+
 
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -792,13 +817,17 @@ document.getElementById("nhlToggle").addEventListener("change", e => {
 /* =============================
    9. SIDEBAR LISTS & VISIT TOGGLING
 ============================= */
-const parkListEl = document.getElementById("parkList");
-const teamListEl = document.getElementById("teamList");
+const parkListUSEl = document.getElementById("parkListUS");
+const parkListCAEl = document.getElementById("parkListCA");
+const parkListWIEl = document.getElementById("parkListWI");
+
+const teamListMLBEl = document.getElementById("teamListMLB");
+const teamListNFLEl = document.getElementById("teamListNFL");
+const teamListNBAEl = document.getElementById("teamListNBA");
+const teamListNHLEl = document.getElementById("teamListNHL");
+
 const visitSummaryEl = document.getElementById("visitSummary");
-const tabParksBtn = document.getElementById("tabParks");
-const tabTeamsBtn = document.getElementById("tabTeams");
-const hintParks = document.getElementById("hintParks");
-const hintTeams = document.getElementById("hintTeams");
+
 
 function updateVisitSummary() {
   visitSummaryEl.textContent =
@@ -830,7 +859,7 @@ function refreshTeamMarker(t) {
 }
 
 // Build park list
-parks.slice().sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
+function addParkRow(p, listEl) {
   const li = document.createElement("li");
   const label = document.createElement("label");
   const cb = document.createElement("input");
@@ -839,6 +868,7 @@ parks.slice().sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
   cb.addEventListener("change", e => {
     setParkVisited(p, cb.checked);
     refreshParkMarker(p);
+    updateVisitSummary();
     e.stopPropagation();
   });
   label.appendChild(cb);
@@ -851,14 +881,32 @@ parks.slice().sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
       m.openPopup();
     }
   });
-  parkListEl.appendChild(li);
-});
+  listEl.appendChild(li);
+}
+
+// US national parks
+parks
+  .filter(p => p.country === "US" && p.type !== "state")
+  .slice()
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .forEach(p => addParkRow(p, parkListUSEl));
+
+// Canadian national parks
+parks
+  .filter(p => p.country === "Canada")
+  .slice()
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .forEach(p => addParkRow(p, parkListCAEl));
+
+// Wisconsin state parks
+parks
+  .filter(p => p.type === "state")
+  .slice()
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .forEach(p => addParkRow(p, parkListWIEl));
 
 // Build team list
-sportsTeams.slice().sort((a,b) => {
-  if (a.league === b.league) return a.name.localeCompare(b.name);
-  return a.league.localeCompare(b.league);
-}).forEach(t => {
+function addTeamRow(t, listEl) {
   const li = document.createElement("li");
   const label = document.createElement("label");
   const cb = document.createElement("input");
@@ -867,45 +915,42 @@ sportsTeams.slice().sort((a,b) => {
   cb.addEventListener("change", e => {
     setTeamVisited(t, cb.checked);
     refreshTeamMarker(t);
+    updateVisitSummary();
     e.stopPropagation();
   });
   label.appendChild(cb);
-  label.append(" ["+t.league+"] " + t.name);
+  label.append(" " + t.name);
   li.appendChild(label);
   li.addEventListener("click", () => {
     const m = teamMarkerById.get(t.id);
     if (m) {
-      map.setView(m.getLatLng(), 8);
+      map.setView(m.getLatLng(), 6);
       m.openPopup();
     }
   });
-  teamListEl.appendChild(li);
+  listEl.appendChild(li);
+}
+
+["MLB", "NFL", "NBA", "NHL"].forEach(league => {
+  let listEl;
+  if (league === "MLB") listEl = teamListMLBEl;
+  else if (league === "NFL") listEl = teamListNFLEl;
+  else if (league === "NBA") listEl = teamListNBAEl;
+  else if (league === "NHL") listEl = teamListNHLEl;
+
+  sportsTeams
+    .filter(t => t.league === league)
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .forEach(t => addTeamRow(t, listEl));
 });
 
-// Tabs
-function showParksTab() {
-  tabParksBtn.classList.add("active");
-  tabTeamsBtn.classList.remove("active");
-  parkListEl.classList.remove("hidden");
-  teamListEl.classList.add("hidden");
-  hintParks.classList.remove("hidden");
-  hintTeams.classList.add("hidden");
-}
-function showTeamsTab() {
-  tabTeamsBtn.classList.add("active");
-  tabParksBtn.classList.remove("active");
-  teamListEl.classList.remove("hidden");
-  parkListEl.classList.add("hidden");
-  hintTeams.classList.remove("hidden");
-  hintParks.classList.add("hidden");
-}
 
-tabParksBtn.addEventListener("click", showParksTab);
-tabTeamsBtn.addEventListener("click", showTeamsTab);
 
 </script>
 </body>
 </html>
+
 
 
 
