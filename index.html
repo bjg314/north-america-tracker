@@ -135,6 +135,19 @@
     .hidden {
       display: none;
     }
+    /* Make the visible category section fill the sidebar and allow scrolling */
+    .category-section {
+      flex: 1;              /* take remaining height in .sidebar */
+      min-height: 0;        /* allow it to shrink */
+      display: flex;
+      flex-direction: column;
+    }
+    
+    /* When we add .hidden via JS, completely hide the section */
+    .category-section.hidden {
+      display: none;
+    }
+
   </style>
 </head>
 <body>
@@ -845,7 +858,7 @@ const teamListNHLEl = document.getElementById("teamListNHL");
 
 const visitSummaryEl = document.getElementById("visitSummary");
 
-  const categorySelect = document.getElementById("categorySelect");
+const categorySelect = document.getElementById("categorySelect");
 const categorySections = document.querySelectorAll(".category-section");
 
 function showCategory(cat) {
@@ -988,6 +1001,7 @@ function addTeamRow(t, listEl) {
 </script>
 </body>
 </html>
+
 
 
 
